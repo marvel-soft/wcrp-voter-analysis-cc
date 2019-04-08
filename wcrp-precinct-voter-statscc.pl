@@ -14,15 +14,15 @@ use Getopt::Long qw(GetOptions);
 use Time::Piece;
 use Math::Round;
 
-=head1 Function
-=over
-=head2 Overview
+=pod Function
+
 	This program will analyze a nevada-county-voter file
 		a) file is sorted by precint voter-id ascending
 		b)
 	Input: 
 
 	Output: a csv file containing the extracted fields
+	
 =cut
 
 my $records;
@@ -80,7 +80,7 @@ my $totalOTHR       = 0;
 my $totalLEANREP    = 0;
 my $totalLEANDEM    = 0;
 my $daysTotlRegistered = 0;
-my $voter_id = '00000000';
+my $voter_id = 0;
 
 #my $csvRowHash;
 my @csvRowHash;
@@ -99,9 +99,9 @@ my @voterStatHeading = (
 	"Age",
 	"Generals",        "Primaries",       
 	"Polls",           "Absentee",        
-	"LeansDEM",        "LeansREP",        "Leans",
-	"Rank", 
-    "gender",	       "military",
+	"LeansDEM",        "LeansREP",      
+	"Leans",				"Rank", 
+  "gender",	      "military",
 
 );
 my %statLine     = ();
@@ -112,153 +112,145 @@ my $statLine;
 # main program controller
 #
 sub main {
-	#Open file for messages and errors
-	$fileName = basename( $inputFile, ".csv" );
-	$printFile = "precinct-print-" . $fileName . ".txt";
-	open( $printFileh, ">$printFile" )
-	  or die "Unable to open PRINT: $printFile Reason: $!";
+		#Open file for messages and errors
+		$fileName = basename( $inputFile, ".csv" );
+		$printFile = "precinct-print-" . $fileName . ".txt";
+		open( $printFileh, ">$printFile" )
+		or die "Unable to open PRINT: $printFile Reason: $!";
 
-	# Parse any parameters
-	GetOptions(
-		'infile=s'  => \$inputFile,
-		'outile=s'  => \$voterFile,
-		'lines=i'   => \$maxLines,
-		'skip=i'    => \$skipRecords,
-		'help!'     => \$helpReq,
-	) or die "Incorrect usage!\n";
-	if ($helpReq) {
-		printLine ("Come on, it's really not that hard. \n");
-	}
-	else {
-		printLine ("My inputfile is: $inputFile. \n");
-	}
-	unless ( open( INPUT, $inputFile ) ) {
-		die "Unable to open INPUT: $inputFile Reason: $! \n";
-	}
-
-	# pick out the heading line and hold it and remove end character
-	$csvHeadings = <INPUT>;
-	chomp $csvHeadings;
-	#chop $csvHeadings;
-
-	# headings in an array to modify
-	# @csvHeadings will be used to create the files
-	@csvHeadings = split( /\s*,\s*/, $csvHeadings );
-
-	# Build heading for new voter stats record
-	$voterStatHeading = join( ",", @voterStatHeading );
-	$voterStatHeading = $voterStatHeading . "\n";
-
-	#
-	# Initialize process loop
-	$fileName = basename( $inputFile, ".csv" );
-
-	$voterStatFile = "voterstat-" . $fileName . ".csv";
-	printLine ("Voter Statistics file: $voterStatFile \n");
-	open( $voterStatFileh, ">$voterStatFile" )
-	  or die "Unable to open $voterStatFileh: $voterStatFile Reason: $!";
-	print $voterStatFileh $voterStatHeading;
-
-	# Process loop
-	# Read the entire input and
-	# 1) edit the input lines
-	# 2) transform the data
-	# 3) write out transformed line
-  NEW:
-	while ( $line1Read = <INPUT> ) {
-		$linesRead++;
-		if ( eof(INPUT) ) {
-			goto EXIT;
+		# Parse any parameters
+		GetOptions(
+			'infile=s'  => \$inputFile,
+			'outile=s'  => \$voterFile,
+			'lines=i'   => \$maxLines,
+			'skip=i'    => \$skipRecords,
+			'help!'     => \$helpReq,
+		) or die "Incorrect usage!\n";
+		if ($helpReq) {
+			printLine ("Come on, it's really not that hard. \n");
 		}
-		if ($skipRecords > 0) {
-			$skippedRecords = $skippedRecords+1;
-			if ($skippedRecords > $skipRecords) {
-				$skippedRecords = 0;
-			} else {
-					goto NEW;
+		else {
+			printLine ("My inputfile is: $inputFile. \n");
+		}
+		unless ( open( INPUT, $inputFile ) ) {
+			die "Unable to open INPUT: $inputFile Reason: $! \n";
+		}
+
+		# pick out the heading line and hold it and remove end character
+		$csvHeadings = <INPUT>;
+		chomp $csvHeadings;
+		#chop $csvHeadings;
+
+		# headings in an array to modify
+		# @csvHeadings will be used to create the files
+		@csvHeadings = split( /\s*,\s*/, $csvHeadings );
+
+		# Build heading for new voter stats record
+		$voterStatHeading = join( ",", @voterStatHeading );
+		$voterStatHeading = $voterStatHeading . "\n";
+
+		#
+		# Initialize process loop
+		$fileName = basename( $inputFile, ".csv" );
+
+		$voterStatFile = "voterstat-" . $fileName . ".csv";
+		printLine ("Voter Statistics file: $voterStatFile \n");
+		open( $voterStatFileh, ">$voterStatFile" )
+		or die "Unable to open $voterStatFileh: $voterStatFile Reason: $!";
+		print $voterStatFileh $voterStatHeading;
+
+		# Process loop
+		# Read the entire input and
+		# 1) edit the input lines
+		# 2) transform the data
+		# 3) write out transformed line
+	NEW:
+		while ( $line1Read = <INPUT> ) {
+			$linesRead++;
+			if ( eof(INPUT) ) {
+				goto EXIT;
 			}
+			if ($skipRecords > 0) {
+				$skippedRecords = $skippedRecords+1;
+				if ($skippedRecords > $skipRecords) {
+					$skippedRecords = 0;
+				} else {
+						goto NEW;
+				}
+			}
+			#
+			chomp $line1Read;
+			# replace commas from in between double quotes with a space
+			$line1Read =~ s/(?:\G(?!\A)|[^"]*")[^",]*\K(?:,|"(*SKIP)(*FAIL))/ /g;
+			@values1 = split( /\s*,\s*/, $line1Read, -1 );
+
+			# Create hash of line for transformation
+			@csvRowHash{@csvHeadings} = @values1;
+
+			# determine if record needs writing
+			if ( $voter_id eq 0 ) {
+				$voter_id =  $csvRowHash{"voter-id"};
+			}
+			elsif ( $voter_id eq $csvRowHash{"voter-id"}) {
+				print "process @csvRowHash;
+				goto NEW;
+			}
+#write stats and start new segment
+			voterStats();
+			
+		    $voter_id =  $csvRowHash{"voter-id"};
+
+			$linesWritten++;
+			# For now this is the in-elegant way I detect completion
+			if ( eof(INPUT) ) {
+				goto EXIT;
+			}
+			next;
 		}
-		#
-		# Get the data into an array that matches the headers array
-		chomp $line1Read;
-
-		# replace commas from in between double quotes with a space
-		$line1Read =~ s/(?:\G(?!\A)|[^"]*")[^",]*\K(?:,|"(*SKIP)(*FAIL))/ /g;
-
-		# then create the values array
-		@values1 = split( /\s*,\s*/, $line1Read, -1 );
-
-		# Create hash of line for transformation
-		@csvRowHash{@csvHeadings} = @values1;
-
-		# determine if record needs writing
-		if ( $voter_id eq "000000" ) {
-			$voter_id = substr $csvRowHash{"voter_id"} , 0, 4 . "00";
-		}
-		elsif ( $csvRowHash{"precinct"} != $precinct ) {
-
-			# write new precinctSummary
-		printLine ("At line: $linesRead - Precinct Summary for: $precinct \n");
-		#	print "At line: $linesRead - Precinct Summary for: $precinct\n";
-
-		#BR - Absent Ballot Received (prior to election, converted to MB after election) 
-		#EV - Early Voted 
-		#FW - Federal Write-in 
-		#MB - Mail Ballot 
-		#PP - Polling Place 
-		#PV - Provisional Vote 
-
-		voterStats();
-
-		$linesWritten++;
-		#
-		# For now this is the in-elegant way I detect completion
-		if ( eof(INPUT) ) {
-			goto EXIT;
-		}
-		next;
+		goto NEW;
 	}
-	
-	goto NEW;
-}
-#
-# call main program controller
-main();
-#
-# Common Exit
-EXIT:
-printLine ("<===> Completed conversion of: $inputFile \n");
-printLine ("<===> Output available in file: $voterFile \n");
-printLine ("<===> Total Records Read: $linesRead \n");
-printLine ("<===> Total Records written: $linesWritten \n");
+}	
+	#
+	# call main program controller
+	main();
+	#
+	# Common Exit
+	EXIT:
+	printLine ("<===> Completed conversion of: $inputFile \n");
+	printLine ("<===> Output available in file: $voterFile \n");
+	printLine ("<===> Total Records Read: $linesRead \n");
+	printLine ("<===> Total Records written: $linesWritten \n");
 
-close(INPUT);
-#close($voterFileh);
-close($voterStatFileh);
-close($printFileh);
+	close(INPUT);
+	#close($voterFileh);
+	close($voterStatFileh);
+	close($printFileh);
 
-exit;
+	exit;
 
 #
 # create new statLine for voter
-#	"Voter ID","Voter Status", "Precinct","Last Name",
-# "Age", "Generals","Primaries", "Polls", "Absentee","LeansDEM", "LeansREP","Leans",
-# "Rank", "gender", "military","Orig Reg Date","Days Registered", 
 #
+
+#BR - Absent Ballot Received (prior to election, converted to MB after election) 
+#EV - Early Voted 
+#FW - Federal Write-in 
+#MB - Mail Ballot 
+#PP - Polling Place 
+#PV - Provisional Vote 
+
 
 sub voterStats {
 		%statLine = ();
-		$statLine{"Voter ID"}  = $csvRowHash{"voter_id"};
+		$statLine{"Voter ID"}  = $csvRowHash{"voter-id"};
 		
 		$statLine{"Primaries"} = $primaryCount;
 		$statLine{"Generals"}  = $generalCount;
 		$statLine{"Polls"}     = $pollCount;
 		$statLine{"Absentee"}  = $absenteeCount;
-		$statLine{"LeansREP"}  = $leansRepCount;
-		$statLine{"LeansDEM"}  = $leansDemCount;
-		$statLine{"Leans"}     = $leans;
 		$statLine{"Rank"}      = $voterRank;
-		# Line processed- write it and go on....
+	
+# Line processed- write it and go on....
 		@voterStats = ();
 		foreach (@voterStatHeading) {
 			push( @voterStats, $statLine{$_} );
@@ -438,4 +430,3 @@ sub evaluateVoter {
 	$totalLEANREP   = $totalLEANREP + $leanRep;
 	$totalLEANDEM   = $totalLEANDEM + $leanDem;
 }
-
